@@ -2,10 +2,10 @@ package org.apache.cordova.firebase;
 
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.util.Base64;
 import android.util.Log;
 import android.os.Bundle;
+import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -15,7 +15,6 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigInfo;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigValue;
-
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CallbackContext;
 
@@ -27,6 +26,7 @@ import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.messaging.FirebaseMessaging;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -40,15 +40,12 @@ public class FirebasePlugin extends CordovaPlugin {
     private FirebaseAnalytics mFirebaseAnalytics;
     private final String TAG = "FirebasePlugin";
     protected static final String KEY = "badge";
-    protected static Bundle notificationBundle;
+
+    private static WeakReference<CallbackContext> callbackContext;
 
     @Override
     protected void pluginInitialize() {
         final Context context = this.cordova.getActivity().getApplicationContext();
-        Bundle bundle = this.cordova.getActivity().getIntent().getExtras();
-        if (bundle != null && (bundle.containsKey("google.message_id") || bundle.containsKey("google.sent_time"))) {
-            notificationBundle = bundle;
-        }
         this.cordova.getThreadPool().execute(new Runnable() {
             public void run() {
                 Log.d(TAG, "Starting Firebase plugin");
@@ -83,7 +80,7 @@ public class FirebasePlugin extends CordovaPlugin {
             this.logEvent(callbackContext, args.getString(0), args.getJSONObject(1));
             return true;
         } else if (action.equals("setUserId")) {
-            this.setUserId(callbackContext, args.getString(0));
+            this.setUserId (callbackContext, args.getString(0));
             return true;
         } else if (action.equals("setUserProperty")) {
             this.setUserProperty(callbackContext, args.getString(0), args.getString(1));
@@ -96,13 +93,11 @@ public class FirebasePlugin extends CordovaPlugin {
             else this.fetch(callbackContext);
             return true;
         } else if (action.equals("getByteArray")) {
-            if (args.length() > 1)
-                this.getByteArray(callbackContext, args.getString(0), args.getString(1));
+            if (args.length() > 1) this.getByteArray(callbackContext, args.getString(0), args.getString(1));
             else this.getByteArray(callbackContext, args.getString(0), null);
             return true;
         } else if (action.equals("getValue")) {
-            if (args.length() > 1)
-                this.getValue(callbackContext, args.getString(0), args.getString(1));
+            if (args.length() > 1) this.getValue(callbackContext, args.getString(0), args.getString(1));
             else this.getValue(callbackContext, args.getString(0), null);
             return true;
         } else if (action.equals("getInfo")) {
@@ -112,8 +107,7 @@ public class FirebasePlugin extends CordovaPlugin {
             this.setConfigSettings(callbackContext, args.getJSONObject(0));
             return true;
         } else if (action.equals("setDefaults")) {
-            if (args.length() > 1)
-                this.setDefaults(callbackContext, args.getJSONObject(0), args.getString(1));
+            if (args.length() > 1) this.setDefaults(callbackContext, args.getJSONObject(0), args.getString(1));
             else this.setDefaults(callbackContext, args.getJSONObject(0), null);
             return true;
         }
@@ -121,26 +115,34 @@ public class FirebasePlugin extends CordovaPlugin {
     }
 
     private void registerOnNotificationOpen(final CallbackContext callbackContext) {
-        if (callbackContext != null && notificationBundle != null) {
+        FirebasePlugin.callbackContext = new WeakReference<CallbackContext>(callbackContext);
+    }
+
+    public static void onNotificationOpen(Bundle bundle) {
+        if(FirebasePlugin.callbackContext == null ){
+            return;
+        }
+        final CallbackContext callbackContext = FirebasePlugin.callbackContext.get();
+        if (callbackContext != null && bundle != null) {
             JSONObject json = new JSONObject();
-            Set<String> keys = notificationBundle.keySet();
+            Set<String> keys = bundle.keySet();
             for (String key : keys) {
                 try {
-                    json.put(key, notificationBundle.get(key));
+                    json.put(key, bundle.get(key));
                 } catch (JSONException e) {
                     callbackContext.error(e.getMessage());
-                    FirebasePlugin.notificationBundle = null;
                     return;
                 }
             }
 
             callbackContext.success(json);
-            FirebasePlugin.notificationBundle = null;
         }
     }
 
-    public static void onNotificationOpen(Bundle bundle) {
-        FirebasePlugin.notificationBundle = bundle;
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        FirebasePlugin.onNotificationOpen(intent.getExtras());
     }
 
     private void getInstanceId(final CallbackContext callbackContext) {
@@ -217,12 +219,12 @@ public class FirebasePlugin extends CordovaPlugin {
     private void logEvent(final CallbackContext callbackContext, final String name, final JSONObject params) throws JSONException {
         final Bundle bundle = new Bundle();
         Iterator iter = params.keys();
-        while (iter.hasNext()) {
-            String key = (String) iter.next();
+        while(iter.hasNext()){
+            String key = (String)iter.next();
             Object value = params.get(key);
 
             if (value instanceof Integer || value instanceof Double) {
-                bundle.putFloat(key, ((Number) value).floatValue());
+                bundle.putFloat(key, ((Number)value).floatValue());
             } else {
                 bundle.putString(key, value.toString());
             }
@@ -317,9 +319,7 @@ public class FirebasePlugin extends CordovaPlugin {
                             : FirebaseRemoteConfig.getInstance().getByteArray(key, namespace);
                     JSONObject object = new JSONObject();
                     object.put("base64", Base64.encodeToString(bytes, Base64.DEFAULT));
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        object.put("array", new JSONArray(bytes));
-                    }
+                    object.put("array", new JSONArray(bytes));
                     callbackContext.success(object);
                 } catch (Exception e) {
                     callbackContext.error(e.getMessage());

@@ -12,6 +12,9 @@
         },
         "cordova-plugin-whitelist": {
             "PACKAGE_NAME": "es.crsur.firebasetest"
+        },
+        "com.napolitano.cordova.plugin.intent": {
+            "PACKAGE_NAME": "es.crsur.firebasetest"
         }
     },
     "dependent_plugins": {}

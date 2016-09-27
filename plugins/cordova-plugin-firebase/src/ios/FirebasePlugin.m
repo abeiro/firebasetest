@@ -6,14 +6,10 @@
 @import FirebaseMessaging;
 @import FirebaseAnalytics;
 
-#if defined(__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
-@import UserNotifications;
-#endif
 
 @implementation FirebasePlugin
 
 @synthesize notificationCallbackId;
-@synthesize tokenRefreshCallbackId;
 @synthesize notificationStack;
 
 static NSInteger const kNotificationStackSize = 10;
@@ -38,18 +34,7 @@ static FirebasePlugin *firebasePlugin;
 }
 
 - (void)grantPermission:(CDVInvokedUrlCommand *)command {
-#if defined(__IPHONE_10_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_10_0
-    UNAuthorizationOptions authOptions =
-      UNAuthorizationOptionAlert
-      | UNAuthorizationOptionSound
-      | UNAuthorizationOptionBadge;
-    [[UNUserNotificationCenter currentNotificationCenter]
-      requestAuthorizationWithOptions:authOptions
-      completionHandler:^(BOOL granted, NSError * _Nullable error) {
-      }
-    ];
-    [[UNUserNotificationCenter currentNotificationCenter] setDelegate:self];
-# elif defined(__IPHONE_8_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_8_0
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
     if ([[UIApplication sharedApplication]respondsToSelector:@selector(registerUserNotificationSettings:)]) {
         UIUserNotificationType notificationTypes =
         (UIUserNotificationTypeSound | UIUserNotificationTypeAlert | UIUserNotificationTypeBadge);
@@ -122,14 +107,6 @@ static FirebasePlugin *firebasePlugin;
     }
 }
 
-- (void)onTokenRefreshNotification:(CDVInvokedUrlCommand *)command {
-    self.tokenRefreshCallbackId = command.callbackId;
-    NSString* currentToken = [[FIRInstanceID instanceID] token];
-    if (currentToken != nil) {
-        [self tokenRefreshNotification:currentToken];
-    }
-}
-
 - (void)sendNotification:(NSDictionary *)userInfo {
     if (self.notificationCallbackId != nil) {
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:userInfo];
@@ -146,13 +123,6 @@ static FirebasePlugin *firebasePlugin;
         if ([self.notificationStack count] >= kNotificationStackSize) {
             [self.notificationStack removeLastObject];
         }
-    }
-}
-
-- (void)tokenRefreshNotification:(NSString *)token {
-    if (self.tokenRefreshCallbackId != nil) {
-        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:token];
-        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.tokenRefreshCallbackId];
     }
 }
 

@@ -60,6 +60,33 @@ var app = {
 		}, function(error) {
 			console.error(error);
 		});
+		
+		window.plugins.intent.setNewIntentHandler(function (intent) {
+				console.log("intent");// Do things 
+		});
+		
+		try {
+		window.handleOpenURL = function (url) {
+			console.log("IOS intent",url);
+			window.resolveLocalFileSystemURI (
+				url, 
+				function (fileEntry) {
+					fileEntry.file (
+						function (file) {
+							console.log ('Successfully received file: ' + file.name);
+						},
+						function (error) {
+							console.log (error);
+						}
+					)
+				}, 
+				function (error) {
+					console.log(error);
+				}
+			)
+		};
+		} catch (e) {}
+
     }
 };
 
